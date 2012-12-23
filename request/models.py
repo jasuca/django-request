@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.utils.translation import ugettext_lazy as _
 
 from request.managers import RequestManager
-from request.utils import HTTP_STATUS_CODES, browsers, engines
+from request.utils import HTTP_STATUS_CODES, browsers, engines, get_client_ip
 
 
 class Request(models.Model):
@@ -26,6 +26,7 @@ class Request(models.Model):
     referer = models.URLField(_('referer'), verify_exists=False, max_length=255, blank=True, null=True)
     user_agent = models.CharField(_('user agent'), max_length=255, blank=True, null=True)
     language = models.CharField(_('language'), max_length=255, blank=True, null=True)
+    session_key = models.CharField(_('session key'), max_length=40, blank=True, null=True)
 
     objects = RequestManager()
 
@@ -49,10 +50,11 @@ class Request(models.Model):
         self.is_ajax = request.is_ajax()
 
         # User infomation
-        self.ip = request.META.get('REMOTE_ADDR', '')
+        self.ip = get_client_ip(request)
         self.referer = request.META.get('HTTP_REFERER', '')[:255]
         self.user_agent = request.META.get('HTTP_USER_AGENT', '')[:255]
         self.language = request.META.get('HTTP_ACCEPT_LANGUAGE', '')[:255]
+        self.session_key = request.session.session_key
 
         if getattr(request, 'user', False):
             if request.user.is_authenticated():
