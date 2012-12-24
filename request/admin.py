@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, date
+from django.utils.timezone import utc
 
 from django.db.models import Count
 from django.utils.translation import ugettext_lazy as _
@@ -80,7 +81,7 @@ class RequestAdmin(admin.ModelAdmin):
         else:
             days_step = 30
 
-        days = [date.today() - timedelta(day) for day in xrange(0, days_count, days_step)]
+        days = [datetime.utcnow().replace(tzinfo=utc) - timedelta(day) for day in xrange(0, days_count, days_step)]
         days_qs = [(day, Request.objects.day(date=day)) for day in days]
         return HttpResponse(simplejson.dumps(modules.graph(days_qs)), mimetype='text/javascript')
 

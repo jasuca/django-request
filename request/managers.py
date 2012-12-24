@@ -1,5 +1,7 @@
 import datetime
 import time
+from django.utils.timezone import utc
+import calendar
 
 from django.db import models
 from django.contrib.auth.models import User
@@ -26,12 +28,11 @@ class RequestQuerySet(models.query.QuerySet):
             except ValueError:
                 return
 
+        weekday, number_days = calendar.monthrange(date.year, date.month)
+
         # Calculate first and last day of month, for use in a date-range lookup.
         first_day = date.replace(day=1)
-        if first_day.month == 12:
-            last_day = first_day.replace(year=first_day.year + 1, month=1)
-        else:
-            last_day = first_day.replace(month=first_day.month + 1)
+        last_day = date.replace(day=number_days) + datetime.timedelta(1)
 
         lookup_kwargs = {
             'time__gte': first_day,
@@ -42,7 +43,7 @@ class RequestQuerySet(models.query.QuerySet):
 
     def week(self, year, week):
         try:
-            date = datetime.date(*time.strptime(year + '-0-' + week, '%Y-%w-%U')[:3])
+            date = datetime.date(*time.strptime(year + '-0-' + week, '%Y-%w-%U')[:3]).replace(tzinfo=utc)
         except ValueError:
             return
 
@@ -66,19 +67,21 @@ class RequestQuerySet(models.query.QuerySet):
             except ValueError:
                 return
 
-        return self.filter(time__range=(datetime.datetime.combine(date, datetime.time.min), datetime.datetime.combine(date, datetime.time.max)))
+        dt_start = datetime.datetime.combine(date, datetime.time.min).replace(tzinfo=utc)
+        dt_end = datetime.datetime.combine(date, datetime.time.max).replace(tzinfo=utc)
+        return self.filter(time__range=(dt_start, dt_end))
 
     def today(self):
-        return self.day(date=datetime.date.today())
+        return self.day(date=datetime.datetime.utcnow().replace(tzinfo=utc))
 
     def this_year(self):
-        return self.year(datetime.datetime.now().year)
+        return self.year(datetime.datetime.utcnow().replace(tzinfo=utc).year)
 
     def this_month(self):
-        return self.month(date=datetime.date.today())
+        return self.month(date=datetime.datetime.utcnow().replace(tzinfo=utc))
 
     def this_week(self):
-        today = datetime.date.today()
+        today = datetime.datetime.utcnow().replace(tzinfo=utc)
         return self.week(str(today.year), str(today.isocalendar()[1] - 1))
 
     def unique_visits(self):
@@ -116,7 +119,7 @@ class RequestManager(models.Manager):
         qs = self.filter(user__isnull=False)
 
         if options:
-            time = datetime.datetime.now() - datetime.timedelta(**options)
+            time = datetime.datetime.utcnow().replace(tzinfo=utc) - datetime.timedelta(**options)
             qs = qs.filter(time__gte=time)
 
         requests = qs.select_related('user').only('user')
