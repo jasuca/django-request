@@ -54,7 +54,8 @@ class Request(models.Model):
         self.referer = request.META.get('HTTP_REFERER', '')[:255]
         self.user_agent = request.META.get('HTTP_USER_AGENT', '')[:255]
         self.language = request.META.get('HTTP_ACCEPT_LANGUAGE', '')[:255]
-        self.session_key = request.session.session_key
+        if hasattr(request, 'session'):
+            self.session_key = request.session.session_key
 
         if getattr(request, 'user', False):
             if request.user.is_authenticated():
