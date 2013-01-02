@@ -27,7 +27,6 @@ class RequestMiddleware(object):
             if request.user.username in settings.REQUEST_IGNORE_USERNAME:
                 return response
 
-        r = Request()
-        r.from_http_request(request, response)
+        Request.create_from_http_request(request, response)
 
         return response

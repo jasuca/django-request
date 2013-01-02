@@ -7,6 +7,11 @@ from django.utils.translation import ugettext_lazy as _
 from request.managers import RequestManager
 from request.utils import HTTP_STATUS_CODES, browsers, engines, get_client_ip
 
+import datetime
+from django.utils.timezone import utc
+
+import settings
+
 
 class Request(models.Model):
     # Response infomation
@@ -15,7 +20,7 @@ class Request(models.Model):
     # Request infomation
     method = models.CharField(_('method'), default='GET', max_length=7)
     path = models.CharField(_('path'), max_length=255)
-    time = models.DateTimeField(_('time'), auto_now_add=True)
+    time = models.DateTimeField(_('time'))
 
     is_secure = models.BooleanField(_('is secure'), default=False)
     is_ajax = models.BooleanField(_('is ajax'), default=False, help_text=_('Wheather this request was used via javascript.'))
@@ -30,6 +35,11 @@ class Request(models.Model):
 
     objects = RequestManager()
 
+    def save(self, *args, **kwargs):
+        """On save, update timestamps"""
+        if not self.id and not self.time:
+            self.time = datetime.datetime.utcnow().replace(tzinfo=utc)
+
     class Meta:
         verbose_name = _('request')
         verbose_name_plural = _('requests')
@@ -43,6 +53,7 @@ class Request(models.Model):
 
     def from_http_request(self, request, response=None, commit=True):
         # Request infomation
+        self.time = datetime.datetime.utcnow().replace(tzinfo=utc)
         self.method = request.method
         self.path = request.path
 
@@ -68,7 +79,18 @@ class Request(models.Model):
                 self.redirect = response['Location']
 
         if commit:
-            self.save()
+            if settings.REQUEST_BUFFER_SIZE == 0:
+                self.save()
+            else:
+                settings.REQUEST_BUFFER.append(self)
+                if len(settings.REQUEST_BUFFER) > settings.REQUEST_BUFFER_SIZE:
+                    Request.objects.bulk_create(settings.REQUEST_BUFFER)
+                    settings.REQUEST_BUFFER = []
+
+    @classmethod
+    def create_from_http_request(cls, request, response=None, commit=True):
+        r = cls()
+        r.from_http_request(request, response, commit)
 
     #@property
     def browser(self):
