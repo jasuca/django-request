@@ -11,7 +11,7 @@ from request.utils import HTTP_STATUS_CODES, browsers, engines, get_client_ip
 import datetime
 from django.utils.timezone import utc
 
-import settings
+from request import settings
 
 
 class Request(models.Model):
@@ -29,7 +29,7 @@ class Request(models.Model):
     # User infomation
     ip = models.IPAddressField(_('ip address'))
     user = models.ForeignKey(User, blank=True, null=True, verbose_name=_('user'))
-    referer = models.URLField(_('referer'), verify_exists=False, max_length=255, blank=True, null=True)
+    referer = models.URLField(_('referer'), max_length=255, blank=True, null=True)
     user_agent = models.CharField(_('user agent'), max_length=255, blank=True, null=True)
     language = models.CharField(_('language'), max_length=255, blank=True, null=True)
     session_key = models.CharField(_('session key'), max_length=40, blank=True, null=True)
@@ -142,3 +142,15 @@ class Request(models.Model):
         except Exception:  # socket.gaierror, socket.herror, etc
             return self.ip
     hostname = property(hostname)
+
+    def save(self, force_insert=False, force_update=False, using=None, update_fields=None):
+        if not settings.REQUEST_LOG_IP:
+            self.ip = settings.REQUEST_IP_DUMMY
+        elif settings.REQUEST_ANONYMOUS_IP:
+            parts = self.ip.split('.')[0:-1]
+            parts.append('1')
+            self.ip='.'.join(parts)
+        if not settings.REQUEST_LOG_USER:
+            self.user = None
+
+        return models.Model.save(self, force_insert, force_update, using, update_fields)
