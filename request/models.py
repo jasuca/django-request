@@ -91,7 +91,10 @@ class Request(models.Model):
             else:
                 settings.REQUEST_BUFFER.append(r)
                 if len(settings.REQUEST_BUFFER) > settings.REQUEST_BUFFER_SIZE:
-                    Request.objects.bulk_create(settings.REQUEST_BUFFER)
+                    try:
+                        Request.objects.bulk_create(settings.REQUEST_BUFFER)
+                    except:
+                        pass
                     settings.REQUEST_BUFFER = []
 
     @staticmethod
