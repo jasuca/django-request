@@ -4,7 +4,11 @@ from django.utils.timezone import utc
 import calendar
 
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.sessions.models import Session
+from django.core.cache import cache
+
+from request import settings
+from request.utils import request_cache_key
 
 try:  # For python <= 2.3
     set()
@@ -85,7 +89,6 @@ class RequestQuerySet(models.query.QuerySet):
         return self.week(str(today.year), str(today.isocalendar()[1] - 1))
 
     def unique_visits(self):
-        from request import settings
         return self.exclude(referer__startswith=settings.REQUEST_BASE_URL)
 
     def attr_list(self, name):
@@ -96,7 +99,7 @@ class RequestQuerySet(models.query.QuerySet):
 
 
 class RequestManager(models.Manager):
-    def __getattr__(self, attr):
+    def __getattr__(self, attr, *args, **kwargs):
         if attr in QUERYSET_PROXY_METHODS:
             return getattr(self.get_query_set(), attr, None)
         super(RequestManager, self).__getattr__(*args, **kwargs)
@@ -125,3 +128,75 @@ class RequestManager(models.Manager):
         requests = qs.select_related('user').only('user')
 
         return set([request.user for request in requests])
+
+    def create_from_http_request(self, request, response=None, commit=True):
+        r = self.model()
+        r.from_http_request(request, response)
+
+        # Save the request to the cache
+        if commit:
+            if settings.REQUEST_USE_CACHE == True:
+                cache_key = request_cache_key(r)
+                cache.set(cache_key, r, timeout=0)
+
+            elif settings.REQUEST_BUFFER_SIZE == 0:
+                r.save()
+            else:
+                settings.REQUEST_BUFFER.append(r)
+                if len(settings.REQUEST_BUFFER) > settings.REQUEST_BUFFER_SIZE:
+                    try:
+                        self.bulk_create(settings.REQUEST_BUFFER)
+                    except:
+                        pass
+                    settings.REQUEST_BUFFER = []
+
+    def last_requests_with_open_sessions_from_users(self, user_ids):
+        """
+        Returns a SQL cursor with the list of newest request with open session
+        grouped by session for a given list of user ids
+        """
+        # Parse list of ids to int
+        user_ids = map(lambda x: int(x), user_ids)
+
+        if len(user_ids) == 1:
+            # copy twice otherwise the sql query doesn't work
+            user_ids.append(user_ids[0])
+
+        now = datetime.datetime.utcnow().replace(tzinfo=utc)
+
+        query = """SELECT max(r.id) as id \
+                FROM request_request r, django_session s \
+                WHERE r.user_id IN %s and \
+                r.session_key = s.session_key and \
+                s.expire_date >= %s \
+                GROUP BY s.session_key \
+                ORDER BY r.time DESC"""
+
+        rqs = self.raw(query, [user_ids, now])
+
+        return rqs
+
+    def get_open_sessions_from_users(self, user_ids):
+        """
+        Returns a SQL cursor with the list of keys of open session
+        for a given list of user ids
+        """
+        # Parse list of ids to int
+        user_ids = map(lambda x: int(x), user_ids)
+
+        if len(user_ids) == 1:
+            # copy twice otherwise the sql query doesn't work
+            user_ids.append(user_ids[0])
+
+        now = datetime.datetime.utcnow().replace(tzinfo=utc)
+
+        query = """SELECT s.session_key \
+                FROM request_request r, django_session s \
+                WHERE r.user_id IN %s and \
+                r.session_key = s.session_key and \
+                s.expire_date >= %s \
+                GROUP BY s.session_key"""
+
+        sessions = Session.objects.raw(query, [user_ids, now])
+
+        return sessions
