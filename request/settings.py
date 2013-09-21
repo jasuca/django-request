@@ -38,4 +38,4 @@ except:
 REQUEST_BUFFER = []
 REQUEST_BUFFER_SIZE = getattr(settings, 'REQUEST_BUFFER_SIZE', 0)
 REQUEST_USE_CACHE = getattr(settings, 'REQUEST_USE_CACHE', False)
-REQUEST_USE_CACHE_PREFIX = getattr(settings, 'REQUEST_USE_CACHE_PREFIX', 'request')
+REQUEST_CACHE_PREFIX = getattr(settings, 'REQUEST_CACHE_PREFIX', 'request')

@@ -147,10 +147,11 @@ def request_cache_key(request):
     """
     Returns the key for request cache database
     """
-    prefix = settings.REQUEST_USE_CACHE_PREFIX
+    prefix = settings.REQUEST_CACHE_PREFIX
+    user = request.user if request.user else "anonymous"
     timestamp = format(request.time, 'U')
     request_id = uuid.uuid4()  # Add unique uuid to prevent user-timestamp collision
 
-    key_cache = '%s:%d:%s:%s' % (prefix, request.user_id, timestamp, request_id)
+    key_cache = '%s:%s:%s:%s' % (prefix, user, timestamp, request_id)
 
     return key_cache

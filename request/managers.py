@@ -149,6 +149,31 @@ class RequestManager(models.Manager):
                     except:
                         pass
                     settings.REQUEST_BUFFER = []
+    
+    def persist_cached(self, cache_pattern=None):
+        """
+        Fetches all requests stored in the cache and push them to the database.
+        Returns the persisted requests.
+        """
+        created = []
+
+        if settings.REQUEST_USE_CACHE:
+            # Set default cache pattern if not given
+            if not cache_pattern:
+                cache_pattern = '%s*' % settings.REQUEST_CACHE_PREFIX
+
+            # Get all requests from cache
+            requests_keys = cache.keys(cache_pattern)
+            requests_dict = cache.get_many(requests_keys)
+            requests = requests_dict.values()
+            
+            # Persist all requests to database
+            created = self.bulk_create(requests)
+
+            # Clear requests cache
+            cache.delete_pattern(cache_pattern)
+
+        return created
 
     def last_requests_with_open_sessions_from_users(self, user_ids):
         """
@@ -164,39 +189,29 @@ class RequestManager(models.Manager):
 
         now = datetime.datetime.utcnow().replace(tzinfo=utc)
 
+        # Store cached requests in the database before querying
+        self.persist_cached()
+        
+        # It cannot be done via ORM with one query since there is no relationship between the two tables
         query = """SELECT max(r.id) as id \
-                FROM request_request r, django_session s \
-                WHERE r.user_id IN %s and \
-                r.session_key = s.session_key and \
-                s.expire_date >= %s \
-                GROUP BY s.session_key \
-                ORDER BY r.time DESC"""
+                   FROM request_request r, django_session s \
+                   WHERE r.user_id IN %s and \
+                         s.expire_date >= %s and \
+                         r.session_key = s.session_key \
+                   GROUP BY s.session_key \
+                   ORDER BY r.time DESC"""
 
-        rqs = self.raw(query, [user_ids, now])
+        # Get active session keys from database-stored requests
+        requests = self.raw(query, [user_ids, now])
 
-        return rqs
+        return requests
 
-    def get_open_sessions_from_users(self, user_ids):
+    def get_open_session_keys_from_users(self, user_ids):
         """
         Returns a SQL cursor with the list of keys of open session
         for a given list of user ids
         """
-        # Parse list of ids to int
-        user_ids = map(lambda x: int(x), user_ids)
+        requests = self.last_requests_with_open_sessions_from_users(user_ids)
+        session_keys = [r.session_key for r in requests]
 
-        if len(user_ids) == 1:
-            # copy twice otherwise the sql query doesn't work
-            user_ids.append(user_ids[0])
-
-        now = datetime.datetime.utcnow().replace(tzinfo=utc)
-
-        query = """SELECT s.session_key \
-                FROM request_request r, django_session s \
-                WHERE r.user_id IN %s and \
-                r.session_key = s.session_key and \
-                s.expire_date >= %s \
-                GROUP BY s.session_key"""
-
-        sessions = Session.objects.raw(query, [user_ids, now])
-
-        return sessions
+        return session_keys
