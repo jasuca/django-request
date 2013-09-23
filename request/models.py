@@ -2,7 +2,6 @@ from socket import gethostbyaddr
 
 from django.db import models
 from django.contrib.auth.models import User
-from django.contrib.sessions.models import Session
 from django.utils.translation import ugettext_lazy as _
 
 from request.managers import RequestManager
@@ -78,44 +77,6 @@ class Request(models.Model):
 
             if (response.status_code == 301) or (response.status_code == 302):
                 self.redirect = response['Location']
-
-    @classmethod
-    def create_from_http_request(cls, request, response=None, commit=True):
-        r = cls()
-        r.from_http_request(request, response)
-
-        # save the request
-        if commit:
-            if settings.REQUEST_BUFFER_SIZE == 0:
-                r.save()
-            else:
-                settings.REQUEST_BUFFER.append(r)
-                if len(settings.REQUEST_BUFFER) > settings.REQUEST_BUFFER_SIZE:
-                    try:
-                        Request.objects.bulk_create(settings.REQUEST_BUFFER)
-                    except:
-                        pass
-                    settings.REQUEST_BUFFER = []
-
-    @staticmethod
-    def get_open_sessions_from_users(user_ids):
-        """
-        Return a SQL cursor with the list of newest request grouped
-        by session for a given list of user ids
-        """
-        now = datetime.datetime.utcnow().replace(tzinfo=utc)
-
-        query = """SELECT max(r.id) as id \
-                FROM request_request r, django_session s \
-                WHERE r.user_id IN %s and \
-                r.session_key = s.session_key and \
-                s.expire_date >= %s \
-                GROUP BY s.session_key \
-                ORDER BY r.time DESC"""
-
-        rqs = Request.objects.raw(query, [user_ids, now])
-
-        return rqs
 
     #@property
     def browser(self):
