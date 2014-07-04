@@ -18,6 +18,13 @@ Default: ``None``
 
 Any requests from a IP Address in this list will be ignored.
 
+``REQUEST_IGNORE_USER_AGENTS``
+=====================
+
+Default: ``None``
+
+Any requests from a list of user agents in this list will be ignored.
+
 ``REQUEST_LOG_IP``
 =====================
 
