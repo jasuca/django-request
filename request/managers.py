@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import datetime
 import time
 from django.utils.timezone import utc
@@ -165,7 +166,7 @@ class RequestManager(models.Manager):
             # Get all requests from cache
             requests_keys = cache.keys(cache_pattern)
             requests_dict = cache.get_many(requests_keys)
-            requests = requests_dict.values()
+            requests = list(requests_dict.values())
             
             # Persist all requests to database
             created = self.bulk_create(requests)
@@ -181,7 +182,7 @@ class RequestManager(models.Manager):
         grouped by session for a given list of user ids
         """
         # Parse list of ids to int
-        user_ids = map(lambda x: int(x), user_ids)
+        user_ids = [int(x) for x in user_ids]
 
         if len(user_ids) == 1:
             # copy twice otherwise the sql query doesn't work

@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import re
 
 from django.db.models import Count
@@ -7,6 +8,7 @@ from django.template.loader import render_to_string
 from request import settings
 from request.models import Request
 from request.traffic import modules
+import six
 
 # Calculate the verbose_name by converting from InitialCaps to "lowercase with spaces".
 get_verbose_name = lambda class_name: re.sub('(((?<=[a-z])[A-Z])|([A-Z](?![A-Z]|$)))', ' \\1', class_name).strip()
@@ -30,7 +32,7 @@ def set_count(items):
             item_count[item] = 0
         item_count[item] += 1
 
-    items = [(v, k) for k, v in item_count.iteritems()]
+    items = [(v, k) for k, v in six.iteritems(item_count)]
     items.sort()
     items.reverse()
 
@@ -47,18 +49,18 @@ class Plugins(object):
             try:
                 dot = module_path.rindex('.')
             except ValueError:
-                raise exceptions.ImproperlyConfigured, '%s isn\'t a plugin' % module_path
+                raise exceptions.ImproperlyConfigured('%s isn\'t a plugin' % module_path)
             plugin, plugin_classname = module_path[:dot], module_path[dot + 1:]
 
             try:
                 mod = import_module(plugin)
-            except ImportError, e:
-                raise exceptions.ImproperlyConfigured, 'Error importing plugin %s: "%s"' % (plugin, e)
+            except ImportError as e:
+                raise exceptions.ImproperlyConfigured('Error importing plugin %s: "%s"' % (plugin, e))
 
             try:
                 plugin_class = getattr(mod, plugin_classname)
             except AttributeError:
-                raise exceptions.ImproperlyConfigured, 'Plugin "%s" does not define a "%s" class' % (plugin, plugin_classname)
+                raise exceptions.ImproperlyConfigured('Plugin "%s" does not define a "%s" class' % (plugin, plugin_classname))
 
             self._plugins.append(plugin_class())
 

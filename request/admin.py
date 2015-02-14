@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from datetime import datetime, timedelta, date
 from django.utils.timezone import utc
 
@@ -8,6 +9,7 @@ from functools import update_wrapper
 from django.template import RequestContext
 from django.contrib import admin
 from django.http import HttpResponse
+from six.moves import range
 try:
     from django.utils import simplejson as json
 except:
@@ -84,7 +86,7 @@ class RequestAdmin(admin.ModelAdmin):
         else:
             days_step = 30
 
-        days = [datetime.utcnow().replace(tzinfo=utc) - timedelta(day) for day in xrange(0, days_count, days_step)]
+        days = [datetime.utcnow().replace(tzinfo=utc) - timedelta(day) for day in range(0, days_count, days_step)]
         days_qs = [(day, Request.objects.day(date=day)) for day in days]
         return HttpResponse(json.dumps(modules.graph(days_qs)), content_type='text/javascript')
 
